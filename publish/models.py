@@ -155,7 +155,7 @@ class Publishable(models.Model):
         return self.publish_state == Publishable.PUBLISH_DELETE
 
     def get_public_absolute_url(self):
-        if self.public:
+        if self.public and hasattr(self.public, 'get_absolute_url'):
             return self.public.get_absolute_url()
         return None
 
