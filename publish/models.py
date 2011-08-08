@@ -80,6 +80,24 @@ class PublishableManager(models.Manager):
         '''all public/published objects'''
         return self.get_query_set().published()
 
+    def get_publish_object_list(self, filter, request):
+        '''
+        Takes a Publishable Q object (Q_PUBLISHED or Q_DRAFT) and the current
+        request object and returns a correctly filtered queryset.
+
+        If Q_DRAFT is supplied as 'filter', request.user.is_staff will be
+        checked.
+
+        If request.GET['view_at'] or request.session['view_at'] contains a
+        valid unix timestamp objects with a publish_at datetime before the
+        view_at date will be filtered out.
+        '''
+        if request.user.is_staff and 'view_at' in request.GET:
+            ut = datetime.fromtimestamp(int(request.GET.get('view_at')))
+            return self.get_query_set().exclude(publish_at__gt=ut).filter(is_public=True)
+        else:
+            return self.get_query_set().filter(filter)
+
 
 class PublishableBase(ModelBase):
 
@@ -159,7 +177,8 @@ class Publishable(models.Model):
 
     def is_public_now(self):
         return self.is_public and \
-                (self.publish_at is None or self.publish_at <= datetime.now())
+                (self.publish_at is None
+                    or self.publish_at <= datetime.now())
 
     def get_public_absolute_url(self):
         if self.public and hasattr(self.public, 'get_absolute_url'):
