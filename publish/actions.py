@@ -15,7 +15,7 @@ from utils import NestedSet
 
 def _get_change_view_url(app_label, object_name, pk, levels_to_root):
     return '%s%s/%s/%s/' % ('../'*levels_to_root, app_label,
-                            object_name, quote(pk)) 
+                            object_name, quote(pk))
 
 def delete_selected(modeladmin, request, queryset):
     # wrap regular django delete_selected to check permissions for each object
@@ -39,7 +39,7 @@ def _get_publishable_html(admin_site, levels_to_root, value):
     model_name = escape(capfirst(model._meta.verbose_name))
     model_title = escape(force_unicode(value))
     model_text = '%s: %s' % (model_name, model_title)
-    opts = model._meta                
+    opts = model._meta
 
     has_admin = model in admin_site._registry
     if has_admin:
@@ -52,7 +52,7 @@ def _get_publishable_html(admin_site, levels_to_root, value):
         html_value = mark_safe(u'<a href="%s">%s</a>' % (url, model_text))
     else:
         html_value = mark_safe(model_text)
-    
+
     return html_value
 
 def _to_html(admin_site, items):
@@ -83,14 +83,14 @@ def _check_permissions(modeladmin, all_published, request, perms_needed):
 def publish_selected(modeladmin, request, queryset):
     opts = modeladmin.model._meta
     app_label = opts.app_label
-    
+
     all_published = NestedSet()
     for obj in queryset:
         obj.publish(dry_run=True, all_published=all_published)
 
     perms_needed = []
     _check_permissions(modeladmin, all_published, request, perms_needed)
-    
+
     if request.POST.get('post'):
         if perms_needed:
             raise PermissionDenied
@@ -101,15 +101,15 @@ def publish_selected(modeladmin, request, queryset):
                 modeladmin.log_publication(request, object)
 
             queryset.publish()
-            
+
             modeladmin.message_user(request, _("Successfully published %(count)d %(items)s.") % {
                 "count": n, "items": model_ngettext(modeladmin.opts, n)
             })
             # Return None to display the change list page again.
             return None
-    
+
     admin_site = modeladmin.admin_site
- 
+
     context = {
         "title": _("Publish?"),
         "object_name": force_unicode(opts.verbose_name),
@@ -130,4 +130,4 @@ def publish_selected(modeladmin, request, queryset):
     ], context, context_instance=template.RequestContext(request))
 
 
-publish_selected.short_description = "Publish selected %(verbose_name_plural)s"
+publish_selected.short_description = "Approve changes to selected %(verbose_name_plural)s"

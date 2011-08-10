@@ -121,12 +121,23 @@ class PublishableAdmin(admin.ModelAdmin):
 
     def get_publish_status_display(self, obj):
         state = obj.get_publish_state_display()
-        if not obj.is_public and not obj.public:
-            state = '%s - not yet published' % state
-        if obj.public and obj.public.publish_at and obj.public.publish_at > datetime.now():
-            state = 'Scheduled to go live at %s' % obj.public.publish_at
-            if obj.publish_state == Publishable.PUBLISH_CHANGED:
-                state = '%s - has changes awaiting approval' % state
+
+        if obj.publish_state == Publishable.PUBLISH_DEFAULT:
+            state = 'Published'
+        elif not obj.is_public and not obj.public:
+            if obj.is_approved and obj.publish_at and obj.publish_at > datetime.now():
+                state = 'Will be published on %s' % obj.publish_at
+            else:
+                state = 'Awaiting approval'
+        elif obj.publish_state == Publishable.PUBLISH_CHANGED:
+            if obj.is_approved and obj.publish_at and obj.publish_at > datetime.now():
+                state = 'Published, has changes that will go live on %s' % obj.publish_at
+            else:
+                state = 'Published, changes waiting approval'
+        elif obj.publish_state == Publishable.PUBLISH_DELETE:
+            state = 'Deletion pending approval'
+
+
         return state
 
     def log_publication(self, request, object):
