@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 from django.db import models
@@ -5,6 +6,7 @@ from django.db.models.query import QuerySet, Q
 from django.db.models.base import ModelBase
 from django.db.models.fields.related import RelatedField
 from django.conf import settings
+from django.template.defaultfilters import slugify
 
 from utils import NestedSet
 from signals import pre_publish, post_publish
@@ -450,6 +452,38 @@ class Publishable(models.Model):
                 public.delete(mark_for_deletion=False)
 
         self._post_publish(dry_run, all_published, deleted=True)
+
+
+class SluggedPublishable(Publishable):
+    slug = models.SlugField(unique=False, db_index=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        cls = self.__class__
+        if not self.slug:
+            slug = slugify(getattr(self, self.generate_slug_from))
+            num_checks = 0
+            while slug:
+                try:
+                    e = cls.objects.filter(is_public=False).get(slug=slug)
+                    num_checks += 1
+
+                    if num_checks > 1:
+                        match = re.search(r'(.+)-(\d+)$', slug)
+                        if match:
+                            slug = "%s-%d" % (match.group(1),
+                                                int(match.group(2)) + 1)
+                    else:
+                        slug = "%s-1" % slug
+
+                except cls.DoesNotExist:
+                    self.slug = slug
+                    break
+
+        super(SluggedPublishable, self).save(*args, **kwargs)
+
 
 
 if getattr(settings, 'TESTING_PUBLISH', False):
