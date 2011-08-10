@@ -7,15 +7,17 @@
   <ul class="object-tools">
     <li><a href="history/" class="historylink">{% trans "History" %}</a></li>
     {% if original.get_public_absolute_url %}
-    <li><a href="{{ original.get_public_absolute_url }}" class="viewsitelink">{% trans "View on site" %}</a></li>
+        {% if original.public %}
+            {% if original.public.is_public_now %}
+                <li><a href="{{ original.get_public_absolute_url }}" class="viewsitelink">{% trans "View live page" %}</a></li>
+            {% else %}
+                <li><a href="{{ original.get_public_absolute_url }}?view_at={{ original.public.publish_at|date:"U" }}" class="viewsitelink">{% trans "View scheduled page" %}</a></li>
+            {% endif %}
+        {% endif %}
     {% endif %}
     {% if has_absolute_url %}
         <li><a href="../../../r/{{ content_type_id }}/{{ object_id }}/" class="viewsitelink">
-            {% if original.is_public %}
-                {% trans "View on site" %}
-            {% else %}
-                {% trans "Preview on site" %}
-            {% endif %}
+                {% trans "Preview working version" %}
             </a>
         </li>
     {% endif%}
@@ -57,4 +59,3 @@
 </div>
 </form></div>
 {% endblock %}
-

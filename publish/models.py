@@ -80,6 +80,12 @@ class PublishableManager(models.Manager):
         '''all public/published objects'''
         return self.get_query_set().published()
 
+    def pending_scheduled(self):
+        '''
+        all approved but unpublished objects with a publish_at date <= now
+        '''
+        return self.draft().filter(is_approved=True, publish_at__lte=datetime.now())
+
     def get_publish_object_list(self, filter, request):
         '''
         Takes a Publishable Q object (Q_PUBLISHED or Q_DRAFT) and the current
@@ -92,6 +98,10 @@ class PublishableManager(models.Manager):
         valid unix timestamp objects with a publish_at datetime before the
         view_at date will be filtered out.
         '''
+
+        # publish any outstanding scheduled items
+        self.pending_scheduled().publish()
+
         if request.user.is_staff and 'view_at' in request.GET:
             ut = datetime.fromtimestamp(int(request.GET.get('view_at')))
             return self.get_query_set().exclude(publish_at__gt=ut).filter(is_public=True)
@@ -131,6 +141,7 @@ class Publishable(models.Model):
 
     is_public = models.BooleanField(default=False, editable=False, db_index=True)
     publish_at = models.DateTimeField(blank=True, null=True)
+    is_approved = models.BooleanField(default=False, editable=False, db_index=True)
     publish_state = models.IntegerField('Publication status', editable=False, db_index=True, choices=PUBLISH_CHOICES, default=PUBLISH_DEFAULT)
     public = models.OneToOneField('self', related_name='draft', null=True, editable=False)
 
@@ -185,11 +196,23 @@ class Publishable(models.Model):
             return self.public.get_absolute_url()
         return None
 
-    def save(self, mark_changed=True, *arg, **kw):
+    def save(self, mark_changed=True, approve=False, *arg, **kw):
         if not self.is_public and mark_changed:
             if self.publish_state == Publishable.PUBLISH_DELETE:
                 raise PublishException("Attempting to save model marked for deletion")
             self.publish_state = Publishable.PUBLISH_CHANGED
+
+        # set 'is_approved' flag to allow approval of future-scheduled
+        # objects without publishing them immediately
+        if not self.is_public:
+            if approve == True:
+                self.is_approved = True
+            elif self.publish_state == Publishable.PUBLISH_CHANGED:
+                self.is_approved = False
+            elif self.publish_state == Publishable.PUBLISH_DEFAULT:
+                self.is_approved = True
+        else:
+            self.is_approved = True
 
         super(Publishable, self).save(*arg, **kw)
 
@@ -281,9 +304,25 @@ class Publishable(models.Model):
 
         self._pre_publish(dry_run, all_published)
 
+        # if this draft is scheduled for publishing in the future then do not
+        # actually publish/make public, just set is_approved to True
+        #
+        # publishing of future-scheduled objects will be handled when the
+        # object is retrieved - see PublishableManager.get_publish_object_list
+        #
+        if self.publish_at and self.publish_at > datetime.now():
+            self.save(approve=True)
+            self._post_publish(dry_run, all_published)
+
+            if self.public:
+                return self.public
+            else:
+                return self
+
+
         public_version = self.public
         if not public_version:
-            public_version = self.__class__(is_public=True)
+            public_version = self.__class__(is_public=True, is_approved=True)
 
         excluded_fields = self.PublishMeta.excluded_fields()
         reverse_fields_to_publish = self.PublishMeta.reverse_fields_to_publish()
