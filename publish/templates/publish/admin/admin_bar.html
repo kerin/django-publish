@@ -1,0 +1,49 @@
+{% if request.user.is_staff %}
+
+    {% if request.session.preview_at %}
+        <p>
+            You are viewing the site as it will appear on {{ request.session.preview_at }}
+            <a href="?reset_preview_at=1">Reset this</a>
+        </p>
+    {% else %}
+
+        {% if object.is_public %}
+            <p>
+                You are currently viewing the <strong>live</strong> version of this page.
+            </p>
+
+            <p>
+                {% if object.draft.is_scheduled_in_future %}
+                    <a href="{{ object.draft.get_absolute_url }}">View draft version of page</a>
+                    which will be automatically published on <strong>{{ object.draft.publish_at }}</strong>
+                {% else %}
+                    <a href="{{ object.draft.get_absolute_url }}">View pending draft version of page</a>
+                {% endif %}
+            </p>
+        {% else %}
+            <p>
+                {% if object.is_scheduled_in_future %}
+                    You are currently viewing the <strong>draft</strong> version of this page,
+                    which will be automatically published on <strong>{{ object.publish_at }}</strong>.
+                {% else %}
+                    You are currently viewing the <strong>draft</strong> version of this page,
+                {% endif %}
+            </p>
+
+            <p>
+                {% if object.public %}
+                    <a href="{{ object.public.get_absolute_url }}">View live version of page</a>
+                {% else %}
+                    There is currently no live version of this page.
+                {% endif %}
+            </p>
+        {% endif %}
+
+        <form method="GET" action=".">
+        {{ form }}
+        <input type="submit" name="Go">
+        <br>
+        </form>
+    {% endif %}
+
+{% endif %}
