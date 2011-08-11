@@ -88,27 +88,38 @@ class PublishableManager(models.Manager):
         '''
         return self.draft().filter(is_approved=True, publish_at__lte=datetime.now())
 
-    def get_publish_object_list(self, filter, request):
+    def published_at(self, dt):
+        '''
+        all objects that will be published at a given datetime
+        '''
+        scheduled = self.draft().filter(is_approved=True, publish_at__range=(datetime.now(), dt))
+
+        # live objects that do not have a draft that appears in 'scheduled'
+        live = self.published().exclude(draft__in=scheduled)
+
+        # return combined queryset
+        return scheduled | live
+
+    def get_publish_object_list(self, preview, request):
         '''
         Takes a Publishable Q object (Q_PUBLISHED or Q_DRAFT) and the current
         request object and returns a correctly filtered queryset.
 
-        If Q_DRAFT is supplied as 'filter', request.user.is_staff will be
-        checked.
-
-        If request.GET['view_at'] or request.session['view_at'] contains a
-        valid unix timestamp objects with a publish_at datetime before the
-        view_at date will be filtered out.
+        If request.session['view_at'] contains a datetime and the requesting
+        user is staff, objects that will be published on that date are
+        returned
         '''
 
         # publish any outstanding scheduled items
         self.pending_scheduled().publish()
 
-        if request.user.is_staff and 'view_at' in request.GET:
-            ut = datetime.fromtimestamp(int(request.GET.get('view_at')))
-            return self.get_query_set().exclude(publish_at__gt=ut).filter(is_public=True)
-        else:
-            return self.get_query_set().filter(filter)
+        if request.user.is_staff and request.user.is_active \
+            and 'preview_at' in request.session:
+            return self.published_at(request.session['preview_at'])
+        elif request.user.is_staff and request.user.is_active and preview:
+            return self.get_query_set().filter(Publishable.Q_DRAFT)
+
+        return self.get_query_set().filter(Publishable.Q_PUBLISHED)
 
 
 class PublishableBase(ModelBase):
@@ -136,7 +147,8 @@ class Publishable(models.Model):
     PUBLISH_CHOICES = ((PUBLISH_DEFAULT, 'Published'), (PUBLISH_CHANGED, 'Changed'), (PUBLISH_DELETE, 'To be deleted'))
 
     # make these available here so can easily re-use them in other code
-    Q_PUBLISHED = Q(is_public=True) & ~Q(publish_at__gt=datetime.now())
+    #Q_PUBLISHED = Q(is_public=True) & ~Q(publish_at__gt=datetime.now())
+    Q_PUBLISHED = Q(is_public=True)
     Q_DRAFT     = Q(is_public=False) & ~Q(publish_state=PUBLISH_DELETE)
     Q_CHANGED   = Q(is_public=False, publish_state=PUBLISH_CHANGED)
     Q_DELETED   = Q(is_public=False, publish_state=PUBLISH_DELETE)
@@ -188,10 +200,9 @@ class Publishable(models.Model):
     def is_marked_for_deletion(self):
         return self.publish_state == Publishable.PUBLISH_DELETE
 
-    def is_public_now(self):
-        return self.is_public and \
-                (self.publish_at is None
-                    or self.publish_at <= datetime.now())
+    def is_scheduled_in_future(self):
+        return not self.is_public and self.publish_at and \
+                self.publish_at > datetime.now() and self.is_approved
 
     def get_public_absolute_url(self):
         if self.public and hasattr(self.public, 'get_absolute_url'):
