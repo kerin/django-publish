@@ -4,7 +4,7 @@
 {% block content %}<div id="content-main">
 {% block object-tools %}
 {% if change %}{% if not is_popup %}
-  <ul class="object-tools">
+ <ul class="object-tools">
     <li><a href="history/" class="historylink">{% trans "History" %}</a></li>
     {% if original.get_public_absolute_url and original.public.is_public %}
         <li><a href="{{ original.get_public_absolute_url }}" class="viewsitelink">{% trans "View live page" %}</a></li>
@@ -15,7 +15,19 @@
             </a>
         </li>
     {% endif%}
-  </ul>
+</ul>
+
+{% if changelist_url %}
+<div class="submit-row">
+    <form method="post" action="{{ changelist_url }}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="publish_selected">
+        <input type="hidden" name="_selected_action" value="{{ object_id }}">
+        <input type="submit" name="submit" value="Approve changes">
+    </form>
+</div>
+{% endif %}
+
 {% endif %}{% endif %}
 {% endblock %}
 <form {% if has_file_field %}enctype="multipart/form-data" {% endif %}action="{{ form_url }}" method="post" id="{{ opts.module_name }}_form">{% csrf_token %}{% block form_top %}{% endblock %}

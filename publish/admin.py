@@ -10,6 +10,7 @@ from django.utils.safestring import mark_safe
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.admin.filterspecs import FilterSpec, RelatedFilterSpec
 from django.forms.models import BaseInlineFormSet
+from django.core.urlresolvers import reverse
 
 from models import Publishable
 from actions import publish_selected, delete_selected, undelete_selected
@@ -160,7 +161,20 @@ class PublishableAdmin(admin.ModelAdmin):
                 'title': 'This %s will be deleted' % force_unicode(self.opts.verbose_name),
             })
 
+        if obj:
+            app_label = obj._meta.app_label.lower()
+            object_name = obj._meta.object_name.lower()
+
+            changelist_url = reverse('admin:%s_%s_changelist' % (app_label,
+                object_name))
+
+            context.update({
+                'changelist_url': changelist_url,
+            })
+
+
         return super(PublishableAdmin, self).render_change_form(request, context, add, change, form_url, obj)
+
 
 class PublishableBaseInlineFormSet(BaseInlineFormSet):
     # we will actually delete inline objects, rather than
